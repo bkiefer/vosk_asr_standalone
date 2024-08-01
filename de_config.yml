@@ -1,0 +1,8 @@
+monitor_mic: true
+monitor_asr: true
+language: de_DE
+model_path: '/opt/models/kaldi_models/vosk-model-de-0.6'
+
+vad:
+  threshold: 0.3
+  min_silence_duration_ms: 300
