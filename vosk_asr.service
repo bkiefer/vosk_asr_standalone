@@ -1,0 +1,13 @@
+[Unit]
+After=network.service mosquitto.service
+Requires=network.service mosquitto.service
+
+[Service]
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+User=kiefer
+Group=kiefer
+WorkingDirectory=/home/kiefer/src/vosk_asr
+ExecStart=-/home/kiefer/src/vosk_asr/run_asr.sh
+
+[Install]
+WantedBy=default.target
