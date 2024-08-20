@@ -85,7 +85,11 @@ class VoskMicroServer():
             self.buffers_queued = config['buffers_queued']
         self.topic = self.pid + '/asrresult'
         if self.language:
-            self.topic += '/' + self.language
+            slashpos = self.language.find('_')
+            suff = self.language
+            if slashpos >= 0:
+                suff = suff[:slashpos]
+            self.topic += '/' + suff
         self.loop = asyncio.get_running_loop()
         self.audio_queue = asyncio.Queue()
         self.__init_mqtt_client()
