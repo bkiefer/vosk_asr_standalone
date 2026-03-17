@@ -1,0 +1,16 @@
+[project]
+name = "vosk-asr"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+"pyyaml>=6.0" ,
+"resampy==0.4.3",
+"llvmlite>=0.37",
+"numpy>=1.22",
+"paho-mqtt>=2.1.0",
+"PyGObject>=3.48.2",
+"torch==2.8.0",
+"vosk>=0.3.45",
+]

@@ -1,0 +1,11 @@
+monitor_mic: true
+monitor_asr: true
+vosk:
+  language: de
+  model_path: 'vosk-model-de-0.21'
+
+vad:
+  threshold: 0.3
+  min_silence_duration_ms: 300
+# pipeline for handling ReSpeaker mic array
+pipeline: 'pulsesrc ! audio/x-raw,format=S16LE,channels=6,rate={} ! deinterleave name=d d.src_0 ! appsink name=sink emit-signals=true'

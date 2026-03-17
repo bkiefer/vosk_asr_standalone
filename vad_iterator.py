@@ -1,8 +1,25 @@
+import logging
+from pathlib import Path
 import torch
+import numpy as np
+
+logger = logging.getLogger(__file__)
+
+
+def init_jit_model(model_path: Path, device='cpu'):
+    if isinstance(device, str):
+        device = torch.device(device)
+    logger.info(f"Init VAD model on {device}")
+    torch.set_grad_enabled(False)
+    model = torch.jit.load(model_path, map_location=device)
+    model.eval()
+    return model
+
 
 class VADIterator:
     def __init__(self,
-                 model,
+                 model_path: Path,
+                 device = 'cpu',
                  threshold: float = 0.5,
                  sampling_rate: int = 16000,
                  min_silence_duration_ms: int = 100,
@@ -30,7 +47,7 @@ class VADIterator:
             Final speech chunks are padded by speech_pad_ms each side
         """
 
-        self.model = model
+        self.model = init_jit_model(model_path, device)
         self.threshold = threshold
         self.sampling_rate = sampling_rate
 
@@ -67,7 +84,11 @@ class VADIterator:
         self.current_sample += window_size_samples
 
         speech_prob = self.model(x, self.sampling_rate).item()
+        #print(speech_prob)
+        #sys.stdout.flush()
 
+        # temp_end is there is to skip small intervals of silence without
+        # signalling that the speech signal has ended!
         if (speech_prob >= self.threshold) and self.temp_end:
             self.temp_end = 0
 
@@ -88,3 +109,73 @@ class VADIterator:
                 return {'end': int(speech_end) if not return_seconds else round(speech_end / self.sampling_rate, 1)}
 
         return None
+
+
+class VadState:
+    #MIN_SPEECH_DETECTS = 3
+    #MIN_SILENCE_DETECTS = 30
+    BUFFER_SIZE = 512
+
+    def __init__(self, model_path, buffers_queued = 6, buffered = True,
+                 **kwargs):
+        self.framesqueued = VadState.BUFFER_SIZE * buffers_queued
+        self.vad_iterator = VADIterator(model_path, **kwargs)
+        self.is_voice = False
+        self.voice_buffers = [0] * self.framesqueued
+        self.buffer = [] if buffered else None
+
+    def _is_voice(self) -> bool:
+        return self.is_voice
+
+    def add_audio(self, audio_as_intlist):
+        self.voice_buffers.extend(audio_as_intlist)
+        if len(self.voice_buffers) < VadState.BUFFER_SIZE + self.framesqueued:
+            return None, None
+
+        # only check the last vad_state.BUFFER_SIZE samples for the VAD
+        # we queue additional data to be able to provide data from the past
+        ichunk = self.voice_buffers[self.framesqueued:
+                                    self.framesqueued + VadState.BUFFER_SIZE]
+        vadbuf = np.array(ichunk, dtype=np.int16) / 32768
+        speech_dict = self.vad_iterator(vadbuf, return_seconds=True)
+        #print(f'{speech_dict}')
+        transcription_buffer = None
+        voice_state = None
+        if speech_dict:
+            if "start" in speech_dict:
+                # arg ist processed time in milliseconds
+                logger.debug('<')
+                voice_state = "start"
+                self.is_voice = True
+                # add queued buffers to the outbuffer: old + ichunk
+                ichunk = self.voice_buffers[:self.framesqueued
+                                            + VadState.BUFFER_SIZE]
+                if isinstance(self.buffer, list):
+                    self.buffer.extend(ichunk)
+                else:
+                    transcription_buffer = ichunk
+            elif "end" in speech_dict:
+                if not self._is_voice():
+                    logger.warning('VAD end ignored')
+                    return "no_speech", None
+                logger.debug('>')
+                voice_state = "end"
+                self.is_voice = False
+                if isinstance(self.buffer, list):
+                    self.buffer.extend(ichunk)
+                    transcription_buffer = self.buffer
+                    self.buffer.clear()
+                else:
+                    transcription_buffer = ichunk
+        elif self._is_voice():
+            voice_state = "continue"
+            if isinstance(self.buffer, list):
+                self.buffer.extend(ichunk)
+            else:
+                transcription_buffer = ichunk
+        else:
+            voice_state = "no_speech"
+        # in any case, we processed BUFFER_SIZE samples
+        self.voice_buffers = self.voice_buffers[VadState.BUFFER_SIZE:]
+        # samples = audio_buffer length / 2 (int16: 2 bytes, mono)
+        return voice_state, transcription_buffer

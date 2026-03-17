@@ -1,10 +1,13 @@
 import time
 import gi
+import logging
 
 gi.require_version("Gst", "1.0")
 gi.require_version("GstApp", "1.0")
 
 from gi.repository import Gst, GstApp, GLib
+
+logger = logging.getLogger(__file__)
 
 #_ = GstApp
 
@@ -44,6 +47,7 @@ class GstreamerMicroSink(object):
     def __init__(self, callback=lambda buffer: True, pipeline_spec=PIPELINE, rate=16000):
         Gst.init(None)
         self.main_loop = GLib.MainLoop()
+        logger.info(f"Starting gstreamer pipeline '{pipeline_spec.format(rate)}'")
         self.pipeline = Gst.parse_launch(pipeline_spec.format(rate))
         self.appsink = self.pipeline.get_by_name("sink")
         self.callback = callback
