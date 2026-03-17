@@ -1,7 +1,7 @@
 monitor_mic: true
 monitor_asr: true
 language: de_DE
-model_path: '/opt/models/kaldi_models/vosk-model-de-0.6'
+model_path: 'models/kaldi-models/vosk-model-de-0.21'
 
 vad:
   threshold: 0.3

@@ -1,6 +1,5 @@
 audio
-**/target
-**/gen-java
+models
 .classpath
 .project
 .settings
@@ -20,3 +19,4 @@ nbactions.xml
 **/*.snm
 **/auto
 **/__pycache__
+uv.lock

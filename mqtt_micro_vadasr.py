@@ -96,7 +96,7 @@ class VoskMicroServer():
         # create 100 ms buffer with silence (2 bytes per sample): / 1000 * 100
         self.silence_buffer = bytearray(int(1000 * 2 * (self.asr_sample_rate / 1000)))
         # load silero VAD model
-        model = init_jit_model(model_path='silero_vad.jit')
+        model = init_jit_model(model_path='models/silero_vad.jit')
 
         vad_config = config['vad'] if 'vad' in config else dict()
         #print(type(vad_config['threshold']))
