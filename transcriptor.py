@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 
 import sys
@@ -94,10 +93,13 @@ class VoskMicroServer():
 
     def __init__(self, config, transcription_file=None):
         self.pid = "voskasr"
-        self.topics = {}  # string to fn or (fn, qos)
+        self.topics = {
+            self.pid + '/control': self._on_control_msg,
+        }  # string to fn or (fn, qos)
 
         self.audio_dir = "audio/"
         self.language = "de"
+        self.encoding = "utf-8"
 
         self.channels = 1
         self.usedchannel = 0
@@ -108,6 +110,8 @@ class VoskMicroServer():
         self.loop: asyncio.AbstractEventLoop
         self.is_running = True
         self.audio_source = MICRO
+        self.device = None
+        self.always_use_vad = False
 
         if self.from_micro():
             self.timestamp_fn = current_milli_time
@@ -180,12 +184,33 @@ class VoskMicroServer():
                                         mqtt_config['password'])
         self.client.on_connect = self._on_connect
         self.client.on_message = self._on_message
-        self.prompt_topic = self.pid + '/set_prompt'
-        self.topics[self.prompt_topic] = self._on_prompt_msg
+
+    def _pause(self):
+        if self.from_micro() and self.device:
+            self.device.pause()
+
+    def _unpause(self):
+        if self.from_micro() and self.device:
+            self.device.start()
 
     def _on_prompt_msg(self, client, userdata, message):
-        self.initial_prompt = message.payload
+        self.initial_prompt = message.payload.decode(self.encoding)
         logger.info(f'new prompt: {self.initial_prompt}')
+
+    def _on_control_msg(self, client, userdata, message):
+        message = message.payload.decode(self.encoding)
+        logger.info(f'control message: {message}')
+        match message:
+            case 'exit':
+                self.is_running = False
+            case 'pause_mic':
+                self._pause()
+            case 'unpause_mic':
+                self._unpause()
+            case _:
+                if message.startswith('process_file'):
+                    filename = message.split(':')[1]
+                    self.transcription_queue.put(filename)
 
     def _on_connect(self, client, userdata, flags, reason_code, properties):
         logger.debug(f'CONNACK received with code {reason_code}')
@@ -315,7 +340,7 @@ class VoskMicroServer():
     async def microphone_loop(self):
         logger.info(f'sample_rate: {self.asr_sample_rate}')
         start_time = None
-        while self.is_running:
+        while self.is_running or not self.audio_queue.empty():
             audio = await self.audio_queue.get()
             if self.am:
                 self.am.writeframes(audio)
@@ -338,7 +363,6 @@ class VoskMicroServer():
                     self.wf = None
                 start_time = None
         logger.info("Leaving audio_loop")
-
 
     def cb(self, inp, frames):
         self.callback(inp, frames, None, None)
@@ -372,6 +396,7 @@ class VoskMicroServer():
         self.device.stop()
 
     def read_file(self, file):
+        """Synchronously read the file and transcribe the audio."""
         with wave.open(file, "rb") as wf:
             self.channels = wf.getnchannels()
             self.sample_rate = wf.getframerate()

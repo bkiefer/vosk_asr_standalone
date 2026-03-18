@@ -1,13 +1,10 @@
 import time
 import gi
-import logging
 
 gi.require_version("Gst", "1.0")
 gi.require_version("GstApp", "1.0")
 
 from gi.repository import Gst, GstApp, GLib
-
-logger = logging.getLogger(__file__)
 
 #_ = GstApp
 
@@ -29,8 +26,8 @@ PIPELINE_RESPEAKER="""pulsesrc ! audio/x-raw,format=S16LE,channels=6,rate={} ! d
 # For, e.g., Sennheiser headset (stereo, 44100Hz)
 PIPELINE_PULSE = """pulsesrc ! audioconvert ! audio/x-raw,format=S16LE,channels=1,rate={} ! appsink name=sink emit-signals=true"""
 
-#PIPELINE=PIPELINE_RESPEAKER
-PIPELINE=PIPELINE_PULSE
+PIPELINE=PIPELINE_RESPEAKER
+#PIPELINE=PIPELINE_PULSE
 
 class GstreamerMicroSink(object):
 
@@ -47,7 +44,6 @@ class GstreamerMicroSink(object):
     def __init__(self, callback=lambda buffer: True, pipeline_spec=PIPELINE, rate=16000):
         Gst.init(None)
         self.main_loop = GLib.MainLoop()
-        logger.info(f"Starting gstreamer pipeline '{pipeline_spec.format(rate)}'")
         self.pipeline = Gst.parse_launch(pipeline_spec.format(rate))
         self.appsink = self.pipeline.get_by_name("sink")
         self.callback = callback
@@ -56,6 +52,9 @@ class GstreamerMicroSink(object):
 
     def start(self):
         self.pipeline.set_state(Gst.State.PLAYING)
+
+    def pause(self):
+        self.pipeline.set_state(Gst.State.PAUSED)
 
     def stop(self):
         self.pipeline.set_state(Gst.State.NULL)
