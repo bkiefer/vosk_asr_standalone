@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 
 import sys
@@ -75,37 +76,6 @@ def audio_milli_time(audio_time):
     return round(audio_time * 1000)
 
 
-# def named_tupel_to_dictionary(tupel):
-#     """
-#     Convert a named tuple into a dictionary. Use nested dictionaries if tuple
-#     value is another tupel.
-#     :param tupel: named tupel
-#     :return: named tupel converted into dictionary
-#     """
-
-#     result_dict = {}
-#     for key, value in asdict(tupel).items():
-#         if is_dataclass(value):
-#             result_dict[key] = named_tupel_to_dictionary(value)
-#         elif isinstance(value, list):
-#             conv_list = []
-#             for item in value:
-#                 if is_dataclass(item):
-#                     conv_list.append(named_tupel_to_dictionary(item))
-#                 elif isinstance(item, tuple):
-#                     # special handling of language prob lists
-#                     conv_list.append({'lang': item[0], 'prob': item[1]})
-#                 else:
-#                     conv_list.append(item)
-#             if conv_list:
-#                 result_dict[key] = conv_list
-#         elif value is None:
-#             pass
-#         else:
-#             result_dict[key] = value
-#     return result_dict
-
-
 def open_wave_file(path, sample_rate, channels):
     """ Monitor input to .wav file, Takes path, sample rate, an no. channels.
     """
@@ -164,18 +134,13 @@ class VoskMicroServer():
         self.topic = self.pid + '/asrresult'
         if self.language:
             self.topic += '/' + self.language
-        self.transcription_queue = queue.Queue(maxsize=1000)
         self.initial_prompt = ''
         self.transcription_file = transcription_file
         self.__init_mqtt_client()
-        # create 100 ms buffer with silence (2 bytes per sample): / 1000 * 100
-        self.silence_buffer = bytearray(VoskMicroServer.BUFFER_SIZE *
-                                        (self.buffers_queued + 1))
+        self.silence_buffer = bytearray(self.asr_sample_rate * 2)
         # initialize silero VAD model
         vad_config = config.get('vad', dict())
         self.vad_state = VadState(modroot / 'silero_vad.jit', buffered=False, **vad_config)
-
-        # print(f'{self.asr_sample_rate} {self.sample_rate} {self.channels}')
 
         self.__init_recognizer()
 
@@ -194,16 +159,9 @@ class VoskMicroServer():
         self.asr_model = Model(lang=self.language,
                                model_path=str(model_path.absolute()))
         self.recognizer = KaldiRecognizer(self.asr_model, self.asr_sample_rate)
-        self.recognizer.SetMaxAlternatives(10)
+        self.recognizer.SetMaxAlternatives(1)
         self.recognizer.SetWords(True)
         logger.info("Vosk model initialized")
-
-    # def __init_transcription_thread(self):
-    #     logger.info("start transcription thread...")
-    #     self.transcribe_thread = Thread(target=self.transcribe,
-    #                                     daemon=self.from_micro())
-    #     self.transcribe_thread.start()
-    #     logger.info("transcription thread running")
 
     valid_mqtt_keys = {'host', 'port', 'keepalive', 'bind_address', 'bind_port'
                         'clean_start'}
@@ -351,7 +309,7 @@ class VoskMicroServer():
             return self.check_result(self.recognizer.Result(), voice_start)
         else:
             # partial result in self.recognizer.PartialResult()
-            pass
+            logger.debug(f'{self.recognizer.PartialResult()}')
         return voice_start
 
     async def microphone_loop(self):
