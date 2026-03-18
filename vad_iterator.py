@@ -4,7 +4,7 @@ import torch
 import numpy as np
 
 logger = logging.getLogger(__file__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 def init_jit_model(model_path: Path, device='cpu'):
     if isinstance(device, str):
